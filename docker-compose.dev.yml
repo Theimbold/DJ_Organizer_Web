@@ -1,0 +1,38 @@
+# This file is intended to be used with docker-compose.yml for development.
+# It enables hot-reloading for both frontend and backend.
+#
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#
+# On subsequent runs, you can omit --build unless you change the Dockerfile or this file.
+version: '3.8'
+
+services:
+  app:
+    # Use a different image name for development to avoid conflicts with the production image.
+    image: dj-organizer-dev
+    
+    working_dir: /app
+    
+    # This command installs all dependencies (frontend and server) and then starts
+    # both the Vite dev server and the Node.js backend server concurrently.
+    command: sh -c "npm install && cd server && npm install && cd .. && npm run dev:all"
+    
+    ports:
+      # Expose the Vite frontend development server port.
+      - "5173:5173"
+      # The backend port (3001) is already exposed in the base docker-compose.yml file.
+    
+    volumes:
+      # Mount the entire project directory for hot-reloading.
+      # Changes on your host machine will be reflected inside the container.
+      - ./:/app
+      
+      # These volumes prevent the node_modules directories from being overwritten
+      # by the host's (potentially incompatible) node_modules. This is a best practice.
+      - /app/node_modules
+      - /app/server/node_modules
+      
+      # We must re-declare the persistent volumes from the base docker-compose.yml file
+      # because we are overriding the 'volumes' key.
+      - ./server/uploads:/app/server/uploads
+      - ./server/processed:/app/server/processed
