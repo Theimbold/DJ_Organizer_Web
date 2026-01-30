@@ -26,10 +26,10 @@ const Button: React.FC<ButtonProps> = ({ children, onClick, coverUrl, className 
   const baseStyle = useMemo(() => {
     // Frosted glass look
     const glass = {
-      background: 'rgba(255,255,255,0.08)',
-      border: '1px solid rgba(255,255,255,0.18)',
+      background: 'rgba(0,0,0,0.25)',
+      border: '1px solid rgba(255,255,255,0.1)',
       boxShadow:
-        '0 10px 30px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.18)',
+        '0 10px 30px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.1)',
       backdropFilter: 'blur(14px) saturate(140%)',
       WebkitBackdropFilter: 'blur(14px) saturate(140%)',
       color: 'rgba(255,255,255,0.92)',
@@ -37,10 +37,10 @@ const Button: React.FC<ButtonProps> = ({ children, onClick, coverUrl, className 
 
     // Hover: etwas heller + klarer
     const hoverGlass = {
-      background: 'rgba(255,255,255,0.14)',
-      border: '1px solid rgba(255,255,255,0.22)',
+      background: 'rgba(0,0,0,0.40)',
+      border: '1px solid rgba(255,255,255,0.15)',
       boxShadow:
-        '0 14px 40px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.22)',
+        '0 14px 40px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.15)',
       color: 'rgba(255,255,255,0.98)',
     };
 
