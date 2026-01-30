@@ -8,7 +8,8 @@ import SettingsButton from './features/settings/SettingsButton';
 import { ExportButton } from './features/export/ExportButton';
 import { db } from './core/db/db';
 import { Track } from './types/types';
-import { addFileHandle, getFileHandle } from './core/fs/fileHandleState';
+import ConversionProgress from './features/scan/ConversionProgress';
+
 
 const App: React.FC = () => {
     const [tracks, setTracks] = useState<Track[]>([]);
@@ -19,12 +20,22 @@ const App: React.FC = () => {
     
     // New states for conversion progress
     const [conversionStatus, setConversionStatus] = useState<{ total: number; converted: number }>({ total: 0, converted: 0 });
-    const [fileConversionProgress, setFileConversionProgress] = useState<{ [filename: string]: number }>({});
-    const overallConversionPercentage = useMemo(() => {
-        if (conversionStatus.total === 0) return 0;
-        const totalProgress = Object.values(fileConversionProgress).reduce((sum, current) => sum + current, 0);
-        return totalProgress / conversionStatus.total;
-    }, [fileConversionProgress, conversionStatus.total]);
+    
+    const showConversionProgress = conversionStatus.total > 0 && conversionStatus.converted < conversionStatus.total;
+
+    const progressInfo = useMemo(() => {
+        if (processingStatus.isActive) {
+            const percentage = processingStatus.total > 0 ? (processingStatus.processed / processingStatus.total) * 50 : 0;
+            const processedMB = Math.round(processingStatus.processed / 1024 / 1024);
+            const totalMB = Math.round(processingStatus.total / 1024 / 1024);
+            return { percentage, text: `Lade Dateien hoch: ${processedMB}MB / ${totalMB}MB` };
+        }
+        if (showConversionProgress) {
+            const percentage = 50 + (conversionStatus.converted / conversionStatus.total) * 50;
+            return { percentage, text: `${conversionStatus.converted} von ${conversionStatus.total} Tracks konvertiert` };
+        }
+        return { percentage: 0, text: '' };
+    }, [processingStatus, conversionStatus, showConversionProgress]);
 
 
     const selectedTrackRef = useRef(selectedTrack);
@@ -32,42 +43,69 @@ const App: React.FC = () => {
         selectedTrackRef.current = selectedTrack;
     }, [selectedTrack]);
 
-    // WebSocket connection
+    // WebSocket connection with reconnection logic
     useEffect(() => {
-        const ws = new WebSocket('ws://localhost:3001');
-        ws.onopen = () => console.log('WebSocket connected');
-        ws.onclose = () => console.log('WebSocket disconnected');
+        let ws: WebSocket | null = null;
+        let connectInterval: NodeJS.Timeout | null = null;
 
-        ws.onmessage = (event) => {
-            const message = JSON.parse(event.data);
-            switch (message.type) {
-                case 'conversion_progress': {
-                    const { filename, percent } = message.data;
-                    setFileConversionProgress(prev => ({ ...prev, [filename]: percent }));
-                    break;
+        const connect = () => {
+            ws = new WebSocket('ws://localhost:3001');
+
+            ws.onopen = () => {
+                console.log('WebSocket connected');
+                if (connectInterval) {
+                    clearInterval(connectInterval); // Clear interval on successful connection
                 }
-                case 'conversion_complete': {
-                    const newTrack: Track = message.data;
-                    setTracks(prev => [...prev, newTrack]);
-                    db.tracks.add(newTrack); // Also add to IndexedDB
-                    setConversionStatus(prev => ({ ...prev, converted: prev.converted + 1 }));
-                    // NEW: Automatically select the track if no track is currently selected
-                    if (!selectedTrackRef.current) {
-                        setSelectedTrack(newTrack);
+            };
+
+            ws.onclose = () => {
+                console.log('WebSocket disconnected');
+                // Reconnect logic
+                if (!connectInterval) {
+                    connectInterval = setInterval(() => {
+                        console.log('Attempting to reconnect WebSocket...');
+                        connect();
+                    }, 2000);
+                }
+            };
+
+            ws.onerror = (err) => {
+                console.error('WebSocket error:', err);
+                ws?.close(); // This will trigger onclose and the reconnect logic
+            };
+
+            ws.onmessage = (event) => {
+                const message = JSON.parse(event.data);
+                switch (message.type) {
+                    case 'conversion_complete': {
+                        const newTrack: Track = message.data;
+                        setTracks(prev => [...prev, newTrack]);
+                        db.tracks.add(newTrack);
+                        setConversionStatus(prev => ({ ...prev, converted: prev.converted + 1 }));
+                        if (!selectedTrackRef.current) {
+                            setSelectedTrack(newTrack);
+                        }
+                        break;
                     }
-                    break;
+                    case 'conversion_error': {
+                        console.error('Conversion error:', message.data);
+                        setConversionStatus(prev => ({ ...prev, total: Math.max(0, prev.total - 1) }));
+                        break;
+                    }
                 }
-                case 'conversion_error': {
-                    console.error('Conversion error:', message.data);
-                    // Decrement total so the bar can still complete
-                    setConversionStatus(prev => ({ ...prev, total: Math.max(0, prev.total - 1) }));
-                    break;
-                }
-            }
+            };
         };
 
+        connect(); // Initial connection attempt
+
         return () => {
-            ws.close();
+            if (connectInterval) {
+                clearInterval(connectInterval);
+            }
+            if (ws) {
+                ws.onclose = null; // Prevent reconnect logic from firing on component unmount
+                ws.close();
+            }
         };
     }, []);
 
@@ -120,8 +158,6 @@ const App: React.FC = () => {
         setProcessingStatus({ isActive: false, total: 0, processed: 0 });
         if (result.newFilesCount > 0) {
             setConversionStatus({ total: result.newFilesCount, converted: 0 });
-            const initialProgress = result.handlesOfNewFiles.reduce((acc, handle) => ({ ...acc, [handle.name]: 0 }), {});
-            setFileConversionProgress(initialProgress);
         }
         result.handlesOfNewFiles.forEach(handle => {
             // This is a simplified way to associate handles; a robust solution might need more state
@@ -170,145 +206,125 @@ const App: React.FC = () => {
 
     const coverUrl = selectedTrack?.cover_url;
 
-        const showConversionProgress = conversionStatus.total > 0 && conversionStatus.converted < conversionStatus.total;
+                return (
 
-    
+                    <div className="bg-black text-white min-h-screen flex flex-col p-5">
 
-        return (
+                        {/* Header */}
 
-            <div className="bg-black text-white min-h-screen flex flex-col p-5">
+                        <header className="flex justify-between items-center w-full max-w-4xl mx-auto">
 
-                {/* Header */}
+                            <h1 className="text-[#A8AFEC] text-2xl font-bold">File Dancer</h1>
 
-                <header className="relative flex justify-center items-center h-[10vh]">
+                            <SettingsButton isOpen={settingsOpen} onToggle={handleToggleSettings} />
 
-                    <h1 className="text-[#A8AFEC] text-2xl font-bold">DJ Organizer</h1>
+                        </header>
 
-                    <div className="absolute top-0 right-0">
+        
 
-                        <SettingsButton isOpen={settingsOpen} onToggle={handleToggleSettings} />
+                        {/* Centered Content Area */}
 
-                    </div>
+                        <div className="w-full max-w-4xl mx-auto mt-4 flex flex-col gap-4">
 
-                </header>
+                            
 
-    
+                            {/* Action Buttons Section */}
 
-                {/* Action Buttons Section */}
+                            <div className="w-full">
 
-                <div className="flex gap-5" style={{ minHeight: '10vh' }}>
+                                <DirectoryPicker onScanComplete={handleScanComplete} onScanProgress={handleScanProgress} />
 
-                    <div className={tracks.length > 0 ? "w-1/2" : "w-full"}>
+                            </div>
 
-                        <DirectoryPicker onScanComplete={handleScanComplete} onScanProgress={handleScanProgress} coverUrl={coverUrl} />
+                            
 
-                    </div>
+                            {/* Progress Bars Section */}
 
-                    {tracks.length > 0 && (
+                            {(progressInfo.percentage > 0 && progressInfo.percentage < 100) && (
 
-                        <div className="w-1/2">
+                                <div className="w-full">
+
+                                    <ConversionProgress 
+
+                                        text={progressInfo.text}
+
+                                        overallPercentage={progressInfo.percentage}
+
+                                    />
+
+                                </div>
+
+                            )}
+
+        
+
+                            {/* Main Content: Settings or Player/TrackList */}
+
+                            <main className="w-full">
+
+                                {settingsOpen && <div className="my-4"><Settings /></div>}
+
+            
+
+                                {isTrackListVisible ? (
+
+                                    <TrackList
+
+                                        tracks={sortedTracks}
+
+                                        selectedTrack={selectedTrack}
+
+                                        setSelectedTrack={setSelectedTrack}
+
+                                        onRemoveTrack={handleRemoveTrack}
+
+                                        onUpdateTrack={handleUpdateTrack}
+
+                                        onResetRating={handleResetRating}
+
+                                        onToggleView={toggleTrackListView}
+
+                                    />
+
+                                ) : (
+
+                                    <Player
+
+                                        track={selectedTrack}
+
+                                        previousTrack={previousTrack}
+
+                                        nextTrack={nextTrack}
+
+                                        onNext={handleNextTrack}
+
+                                        onPrevious={handlePreviousTrack}
+
+                                        onToggleView={toggleTrackListView}
+
+                                        onUpdateTrack={handleUpdateTrack}
+
+                                    />
+
+                                )}
+
+                            </main>
+
+                        </div>
+
+        
+
+                        <footer className="app-footer">
 
                             <ExportButton coverUrl={coverUrl} />
 
-                        </div>
+                        </footer>
 
-                    )}
+                    </div>
 
-                </div>
+                );
 
-    
-
-                {/* Progress Bars Section */}
-
-                <div className="py-5">
-
-                    {processingStatus.isActive && processingStatus.processed < processingStatus.total && (
-
-                        <div className="p-4 bg-blue-900/50 border border-blue-400 rounded-lg">
-
-                            <p>Uploading files: {Math.round(processingStatus.processed / 1024 / 1024)} MB / {Math.round(processingStatus.total / 1024 / 1024)} MB</p>
-
-                            <progress value={processingStatus.processed} max={processingStatus.total} className="w-full" />
-
-                        </div>
-
-                    )}
-
-    
-
-                    {showConversionProgress && (
-
-                         <div className="p-4 bg-green-900/50 border border-green-400 rounded-lg mt-4">
-
-                            <p>Converting files: {conversionStatus.converted} / {conversionStatus.total}</p>
-
-                            <progress value={conversionStatus.converted} max={conversionStatus.total} className="w-full" />
-
-                        </div>
-
-                    )}
-
-                </div>
-
-    
-
-                {/* Main Content: Settings or Player/TrackList */}
-
-                <main className="flex-grow">
-
-                    {settingsOpen && <div className="my-4"><Settings /></div>}
-
-    
-
-                    {isTrackListVisible ? (
-
-                        <TrackList
-
-                            tracks={sortedTracks}
-
-                            selectedTrack={selectedTrack}
-
-                            setSelectedTrack={setSelectedTrack}
-
-                            onRemoveTrack={handleRemoveTrack}
-
-                            onUpdateTrack={handleUpdateTrack}
-
-                            onResetRating={handleResetRating}
-
-                            onToggleView={toggleTrackListView}
-
-                        />
-
-                    ) : (
-
-                        <Player
-
-                            track={selectedTrack}
-
-                            previousTrack={previousTrack}
-
-                            nextTrack={nextTrack}
-
-                            onNext={handleNextTrack}
-
-                            onPrevious={handlePreviousTrack}
-
-                            onToggleView={toggleTrackListView}
-
-                            onUpdateTrack={handleUpdateTrack}
-
-                        />
-
-                    )}
-
-                </main>
-
-            </div>
-
-        );
-
-    };
+            };
 
     
 
