@@ -1,0 +1,32 @@
+.conversion-progress-container {
+    width: 80%;
+    margin: 0 auto; /* Zentriert den Container */
+    padding: 1rem;
+    background-color: #1a1a1a; /* Ein dunkler, dezenter Hintergrund */
+    border: 1px solid #333;
+    border-radius: 8px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+.progress-text {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+    color: #a0a0a0; /* Dezente Textfarbe */
+}
+
+.progress-bar-background {
+    width: 100%;
+    height: 8px;
+    background-color: #333;
+    border-radius: 4px;
+    overflow: hidden; /* Stellt sicher, dass die Vordergrundleiste innerhalb der abgerundeten Ecken bleibt */
+}
+
+.progress-bar-foreground {
+    height: 100%;
+    background-color: #A8AFEC; /* Die Akzentfarbe Ihrer App */
+    border-radius: 4px;
+    transition: width 0.3s ease-in-out; /* Weicher Übergang beim Wachsen */
+}

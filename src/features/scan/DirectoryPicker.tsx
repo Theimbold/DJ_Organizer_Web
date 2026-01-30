@@ -39,11 +39,11 @@ const DirectoryPicker: React.FC<DirectoryPickerProps> = ({ onScanComplete, onSca
 
   return (
     <Button 
-      onClick={handleDirectoryPick} 
-      coverUrl={backgroundImageUrl}
+      onClick={handleDirectoryPick}
+      className="bg-black text-white"
     >
       {isScanning ? 'Scanning...' : 'Scan Music Directory'}
-      <DriveFolderUploadIcon />
+      <DriveFolderUploadIcon style={{ color: 'white' }} />
     </Button>
   );
 };
