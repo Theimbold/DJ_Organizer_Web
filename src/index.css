@@ -1,3 +1,20 @@
-.selected-track {
-    background-color: #d1fae5; /* Light green background for selected track */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Globale Button-Standardisierung */
+button, .button {
+    height: 48px; /* Standard-Höhe für alle Buttons */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+    border-radius: 0.75rem; /* 12px */
+}
+
+/* Footer für den Export-Button */
+.app-footer {
+    width: 80%;
+    margin: 2rem auto 0; /* Oben Abstand, zentriert */
 }
