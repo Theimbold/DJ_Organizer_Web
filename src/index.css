@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 .selected-track {
     background-color: #d1fae5; /* Light green background for selected track */
 }

@@ -192,7 +192,6 @@ const App: React.FC = () => {
 
                 </header>
 
-    
 
                 {/* Action Buttons Section */}
 
