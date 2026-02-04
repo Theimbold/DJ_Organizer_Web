@@ -1,13 +1,21 @@
 import React, { useMemo, useState } from 'react';
 
 interface ButtonProps {
-    children: React.ReactNode;
-    onClick: () => void;
-    coverUrl?: string;
-    className?: string; // Although not used in this specific button's styling, it's good practice to keep it for flexibility.
+  children: React.ReactNode;
+  onClick: () => void;
+  coverUrl?: string;
+  className?: string;
+  variant?: "dark" | "light";
 }
 
-const Button: React.FC<ButtonProps> = ({ children, onClick, coverUrl, className = '' }) => {
+const Button: React.FC<ButtonProps> = ({
+  children,
+  onClick,
+  coverUrl,
+  className = '',
+  variant = "dark",
+}) => {
+
   const [isHovered, setIsHovered] = useState(false);
 
   // Apple-ish: weiche Rundungen, Glassmorphism, feine Border, subtiler Schatten,
@@ -23,17 +31,28 @@ const Button: React.FC<ButtonProps> = ({ children, onClick, coverUrl, className 
     ${className}
   `;
 
-  const baseStyle = useMemo(() => {
-    // Frosted glass look
-    const glass = {
-      background: 'rgba(255,255,255,0.08)',
-      border: '1px solid rgba(255,255,255,0.18)',
-      boxShadow:
-        '0 10px 30px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.18)',
-      backdropFilter: 'blur(14px) saturate(140%)',
-      WebkitBackdropFilter: 'blur(14px) saturate(140%)',
-      color: 'rgba(255,255,255,0.92)',
-    };
+const baseStyle = useMemo(() => {
+  const isLight = variant === "light";
+
+  const glass = isLight
+    ? {
+        background: "rgba(0,0,0,0.06)",
+        border: "1px solid rgba(0,0,0,0.12)",
+        boxShadow:
+          "0 10px 30px rgba(0,0,0,0.10), inset 0 1px 0 rgba(255,255,255,0.55)",
+        backdropFilter: "blur(14px) saturate(140%)",
+        WebkitBackdropFilter: "blur(14px) saturate(140%)",
+        color: "rgba(0,0,0,0.84)",
+      }
+    : {
+        background: "rgba(255,255,255,0.08)",
+        border: "1px solid rgba(255,255,255,0.18)",
+        boxShadow:
+          "0 10px 30px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.18)",
+        backdropFilter: "blur(14px) saturate(140%)",
+        WebkitBackdropFilter: "blur(14px) saturate(140%)",
+        color: "rgba(255,255,255,0.92)",
+      };
 
     // Hover: etwas heller + klarer
     const hoverGlass = {

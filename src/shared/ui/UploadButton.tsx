@@ -19,7 +19,7 @@ const UploadButton: React.FC<UploadButtonProps> = ({
             disabled={disabled}
 className={`            
                 flex items-center gap-2 px-4 py-2 
-                bg-blue-600 text-white 
+                bg-blue-600 text-black 
                 rounded-xl shadow-md 
                 hover:bg-blue-700 active:bg-blue-800 
                 transition-all duration-200
