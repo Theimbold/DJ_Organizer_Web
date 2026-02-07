@@ -171,7 +171,10 @@ const App: React.FC = () => {
     const coverUrl = selectedTrack?.cover_url;
 
         const showConversionProgress = conversionStatus.total > 0 && conversionStatus.converted < conversionStatus.total;
-
+        const hasTracks = tracks.length > 0;
+        const isUploading = processingStatus.isActive && processingStatus.processed < processingStatus.total;
+        const isConverting = showConversionProgress;
+        const isBusy = isUploading || isConverting; // “busy state”
     
 
         return (
@@ -180,128 +183,98 @@ const App: React.FC = () => {
 
                 {/* Header */}
 
-                <header className="relative flex justify-center items-center h-[10vh]">
+                <header className="relative h-[10vh] flex items-center">
+                    <h1 className="mx-auto text-[#A8AFEC] text-2xl font-bold">
+                        DJ Organizer
+                    </h1>
 
-                    <h1 className="text-[#A8AFEC] text-2xl font-bold">DJ Organizer</h1>
-
-                    <div className="absolute top-0 right-0">
-
+                    <div className="ml-auto">
                         <SettingsButton isOpen={settingsOpen} onToggle={handleToggleSettings} />
-
                     </div>
-
                 </header>
 
 
                 {/* Action Buttons Section */}
 
-                <div className="flex gap-5" style={{ minHeight: '10vh' }}>
-
-                    <div className={tracks.length > 0 ? "w-1/2" : "w-full"}>
-
-                        <DirectoryPicker onScanComplete={handleScanComplete} onScanProgress={handleScanProgress} coverUrl={coverUrl} />
-
+                    <div className="flex gap-5" style={{ minHeight: '10vh' }}>
+                    <div className={hasTracks && !isBusy ? "w-1/2" : "w-full"}>
+                        <DirectoryPicker
+                        onScanComplete={handleScanComplete}
+                        onScanProgress={handleScanProgress}
+                        coverUrl={coverUrl}
+                        />
                     </div>
 
-                    {tracks.length > 0 && (
-
+                    {hasTracks && !isBusy && (
                         <div className="w-1/2">
-
-                            <ExportButton coverUrl={coverUrl} />
-
+                        <ExportButton coverUrl={coverUrl} />
                         </div>
-
                     )}
-
-                </div>
+                    </div>
 
     
 
                 {/* Progress Bars Section */}
-
-                <div className="py-5">
-
-                    {processingStatus.isActive && processingStatus.processed < processingStatus.total && (
-
+                    {(isUploading || isConverting) && (
+                    <div className="py-5">
+                        {isUploading && (
                         <div className="p-4 bg-blue-900/50 border border-blue-400 rounded-lg">
-
-                            <p>Uploading files: {Math.round(processingStatus.processed / 1024 / 1024)} MB / {Math.round(processingStatus.total / 1024 / 1024)} MB</p>
-
+                            <p>
+                            Uploading files: {Math.round(processingStatus.processed / 1024 / 1024)} MB / {Math.round(processingStatus.total / 1024 / 1024)} MB
+                            </p>
                             <progress value={processingStatus.processed} max={processingStatus.total} className="w-full" />
-
                         </div>
+                        )}
 
-                    )}
-
-    
-
-                    {showConversionProgress && (
-
-                         <div className="p-4 bg-green-900/50 border border-green-400 rounded-lg mt-4">
-
+                        {isConverting && (
+                        <div className="p-4 bg-green-900/50 border border-green-400 rounded-lg mt-4">
                             <p>Converting files: {conversionStatus.converted} / {conversionStatus.total}</p>
-
                             <progress value={conversionStatus.converted} max={conversionStatus.total} className="w-full" />
-
                         </div>
-
+                        )}
+                    </div>
                     )}
-
-                </div>
 
     
 
                 {/* Main Content: Settings or Player/TrackList */}
+<main className="flex-grow">
+  {settingsOpen && <div className="my-4"><Settings /></div>}
 
-                <main className="flex-grow">
+  {/* EMPTY oder BUSY: kein Player, keine TrackList */}
+  {!settingsOpen && (!hasTracks || isBusy) && (
+    <div className="mt-6 text-center text-white/70">
+      {!hasTracks && <p>Wähle einen Musik-Ordner aus, um zu starten.</p>}
+      {isBusy && <p>Bitte warten… Dateien werden verarbeitet.</p>}
+    </div>
+  )}
 
-                    {settingsOpen && <div className="my-4"><Settings /></div>}
+  {/* READY: Player / TrackList */}
+  {!settingsOpen && hasTracks && !isBusy && (
+    isTrackListVisible ? (
+      <TrackList
+        tracks={sortedTracks}
+        selectedTrack={selectedTrack}
+        setSelectedTrack={setSelectedTrack}
+        onRemoveTrack={handleRemoveTrack}
+        onUpdateTrack={handleUpdateTrack}
+        onResetRating={handleResetRating}
+        onToggleView={toggleTrackListView}
+      />
+    ) : (
+      <Player
+        track={selectedTrack}
+        previousTrack={previousTrack}
+        nextTrack={nextTrack}
+        onNext={handleNextTrack}
+        onPrevious={handlePreviousTrack}
+        onToggleView={toggleTrackListView}
+        onUpdateTrack={handleUpdateTrack}
+      />
+    )
+  )}
+</main>
 
-    
-
-                    {isTrackListVisible ? (
-
-                        <TrackList
-
-                            tracks={sortedTracks}
-
-                            selectedTrack={selectedTrack}
-
-                            setSelectedTrack={setSelectedTrack}
-
-                            onRemoveTrack={handleRemoveTrack}
-
-                            onUpdateTrack={handleUpdateTrack}
-
-                            onResetRating={handleResetRating}
-
-                            onToggleView={toggleTrackListView}
-
-                        />
-
-                    ) : (
-
-                        <Player
-
-                            track={selectedTrack}
-
-                            previousTrack={previousTrack}
-
-                            nextTrack={nextTrack}
-
-                            onNext={handleNextTrack}
-
-                            onPrevious={handlePreviousTrack}
-
-                            onToggleView={toggleTrackListView}
-
-                            onUpdateTrack={handleUpdateTrack}
-
-                        />
-
-                    )}
-
-                </main>
 
             </div>
 
