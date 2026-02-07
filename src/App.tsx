@@ -24,12 +24,17 @@ const App: React.FC = () => {
   const [isTrackListVisible, setIsTrackListVisible] = useState(false);
 
   // Conversion progress states
-  const [conversionStatus, setConversionStatus] = useState<{ total: number; converted: number }>({
+  const [conversionStatus, setConversionStatus] = useState<{
+    total: number;
+    converted: number;
+  }>({
     total: 0,
     converted: 0,
   });
 
-  const [fileConversionProgress, setFileConversionProgress] = useState<{ [filename: string]: number }>({});
+  const [fileConversionProgress, setFileConversionProgress] = useState<{
+    [filename: string]: number;
+  }>({});
 
   // const overallConversionPercentage = useMemo(() => {
   //   if (conversionStatus.total === 0) return 0;
@@ -55,7 +60,10 @@ const App: React.FC = () => {
       switch (message.type) {
         case 'conversion_progress': {
           const { filename, percent } = message.data;
-          setFileConversionProgress((prev) => ({ ...prev, [filename]: percent }));
+          setFileConversionProgress((prev) => ({
+            ...prev,
+            [filename]: percent,
+          }));
           break;
         }
 
@@ -64,7 +72,10 @@ const App: React.FC = () => {
 
           setTracks((prev) => [...prev, newTrack]);
           db.tracks.add(newTrack);
-          setConversionStatus((prev) => ({ ...prev, converted: prev.converted + 1 }));
+          setConversionStatus((prev) => ({
+            ...prev,
+            converted: prev.converted + 1,
+          }));
 
           // Auto-select first track if none selected
           if (!selectedTrackRef.current) {
@@ -76,7 +87,10 @@ const App: React.FC = () => {
         case 'conversion_error': {
           console.error('Conversion error:', message.data);
           // Decrement total so the bar can still complete
-          setConversionStatus((prev) => ({ ...prev, total: Math.max(0, prev.total - 1) }));
+          setConversionStatus((prev) => ({
+            ...prev,
+            total: Math.max(0, prev.total - 1),
+          }));
           break;
         }
 
@@ -104,7 +118,9 @@ const App: React.FC = () => {
 
       if (!selectedTrackRef.current && serverTracks.length > 0) {
         const unratedTracks = serverTracks.filter((t) => t.status !== 'rated');
-        setSelectedTrack(unratedTracks.length > 0 ? unratedTracks[0] : serverTracks[0]);
+        setSelectedTrack(
+          unratedTracks.length > 0 ? unratedTracks[0] : serverTracks[0]
+        );
       }
     } catch (error) {
       console.error('Error fetching tracks from server:', error);
@@ -125,30 +141,47 @@ const App: React.FC = () => {
   }, [tracks]);
 
   const { previousTrack, nextTrack } = useMemo(() => {
-    if (!selectedTrack || sortedTracks.length < 2) return { previousTrack: null, nextTrack: null };
+    if (!selectedTrack || sortedTracks.length < 2)
+      return { previousTrack: null, nextTrack: null };
 
-    const currentIndex = sortedTracks.findIndex((t) => t.id === selectedTrack.id);
+    const currentIndex = sortedTracks.findIndex(
+      (t) => t.id === selectedTrack.id
+    );
     if (currentIndex === -1) return { previousTrack: null, nextTrack: null };
 
-    const prevIndex = (currentIndex - 1 + sortedTracks.length) % sortedTracks.length;
+    const prevIndex =
+      (currentIndex - 1 + sortedTracks.length) % sortedTracks.length;
     const nextIndex = (currentIndex + 1) % sortedTracks.length;
 
-    return { previousTrack: sortedTracks[prevIndex], nextTrack: sortedTracks[nextIndex] };
+    return {
+      previousTrack: sortedTracks[prevIndex],
+      nextTrack: sortedTracks[nextIndex],
+    };
   }, [selectedTrack, sortedTracks]);
 
   const handleScanProgress = (progress: { loaded: number; total: number }) => {
-    setProcessingStatus({ isActive: true, processed: progress.loaded, total: progress.total });
+    setProcessingStatus({
+      isActive: true,
+      processed: progress.loaded,
+      total: progress.total,
+    });
   };
 
-  const handleScanComplete = (result: { newFilesCount: number; handlesOfNewFiles: FileSystemFileHandle[] }) => {
+  const handleScanComplete = (result: {
+    newFilesCount: number;
+    handlesOfNewFiles: FileSystemFileHandle[];
+  }) => {
     setProcessingStatus({ isActive: false, total: 0, processed: 0 });
 
     if (result.newFilesCount > 0) {
       setConversionStatus({ total: result.newFilesCount, converted: 0 });
 
-      const initialProgress = result.handlesOfNewFiles.reduce((acc, handle) => {
-        return { ...acc, [handle.name]: 0 };
-      }, {} as { [filename: string]: number });
+      const initialProgress = result.handlesOfNewFiles.reduce(
+        (acc, handle) => {
+          return { ...acc, [handle.name]: 0 };
+        },
+        {} as { [filename: string]: number }
+      );
 
       setFileConversionProgress(initialProgress);
     }
@@ -177,9 +210,14 @@ const App: React.FC = () => {
 
   const handleUpdateTrack = async (updatedTrack: Track) => {
     try {
-      await axios.put(`http://localhost:3001/tracks/${updatedTrack.id}`, updatedTrack);
+      await axios.put(
+        `http://localhost:3001/tracks/${updatedTrack.id}`,
+        updatedTrack
+      );
 
-      setTracks((prevTracks) => prevTracks.map((t) => (t.id === updatedTrack.id ? updatedTrack : t)));
+      setTracks((prevTracks) =>
+        prevTracks.map((t) => (t.id === updatedTrack.id ? updatedTrack : t))
+      );
       db.tracks.put(updatedTrack);
 
       if (selectedTrack?.id === updatedTrack.id) {
@@ -207,39 +245,55 @@ const App: React.FC = () => {
   };
 
   const handleNextTrack = () => nextTrack && setSelectedTrack(nextTrack);
-  const handlePreviousTrack = () => previousTrack && setSelectedTrack(previousTrack);
+  const handlePreviousTrack = () =>
+    previousTrack && setSelectedTrack(previousTrack);
 
   const handleToggleSettings = () => setSettingsOpen((prev) => !prev);
   const toggleTrackListView = () => setIsTrackListVisible((prev) => !prev);
 
   const coverUrl = selectedTrack?.cover_url;
 
-  const showConversionProgress = conversionStatus.total > 0 && conversionStatus.converted < conversionStatus.total;
+  const showConversionProgress =
+    conversionStatus.total > 0 &&
+    conversionStatus.converted < conversionStatus.total;
 
   const hasTracks = tracks.length > 0;
-  const isUploading = processingStatus.isActive && processingStatus.processed < processingStatus.total;
+  const isUploading =
+    processingStatus.isActive &&
+    processingStatus.processed < processingStatus.total;
   const isConverting = showConversionProgress;
   const isBusy = isUploading || isConverting; // “busy state”
 
   return (
     <div className="bg-black text-white min-h-screen flex flex-col p-5">
       {/* Header */}
-      <header className="relative h-[10vh] flex items-center">
-        <h1 className="mx-auto text-[#A8AFEC] text-2xl font-bold">DJ Organizer</h1>
+      <header className="relative h-[10vh] flex items-center px-2">
+        <h1 className="absolute left-1/2 -translate-x-1/2 text-[#A8AFEC] text-2xl font-bold">
+          DJ Organizer
+        </h1>
 
         <div className="ml-auto">
-          <SettingsButton isOpen={settingsOpen} onToggle={handleToggleSettings} />
+          <SettingsButton
+            isOpen={settingsOpen}
+            onToggle={handleToggleSettings}
+          />
         </div>
       </header>
 
       {/* Action Buttons Section */}
-      <div className="flex gap-5" style={{ minHeight: '10vh' }}>
-        <div className={hasTracks && !isBusy ? 'w-1/2' : 'w-full'}>
-          <DirectoryPicker onScanComplete={handleScanComplete} onScanProgress={handleScanProgress} coverUrl={coverUrl} />
+      <div className="flex gap-8 min-h-[10vh]">
+        <div
+          className={(hasTracks && !isBusy ? 'w-1/2' : 'w-full') + ' min-w-0'}
+        >
+          <DirectoryPicker
+            onScanComplete={handleScanComplete}
+            onScanProgress={handleScanProgress}
+            coverUrl={coverUrl}
+          />
         </div>
 
         {hasTracks && !isBusy && (
-          <div className="w-1/2">
+          <div className="w-1/2 min-w-0">
             <ExportButton coverUrl={coverUrl} />
           </div>
         )}
@@ -251,19 +305,29 @@ const App: React.FC = () => {
           {isUploading && (
             <div className="p-4 bg-blue-900/50 border border-blue-400 rounded-lg">
               <p>
-                Uploading files: {Math.round(processingStatus.processed / 1024 / 1024)} MB /{' '}
+                Uploading files:{' '}
+                {Math.round(processingStatus.processed / 1024 / 1024)} MB /{' '}
                 {Math.round(processingStatus.total / 1024 / 1024)} MB
               </p>
-              <progress value={processingStatus.processed} max={processingStatus.total} className="w-full" />
+              <progress
+                value={processingStatus.processed}
+                max={processingStatus.total}
+                className="w-full"
+              />
             </div>
           )}
 
           {isConverting && (
             <div className="p-4 bg-green-900/50 border border-green-400 rounded-lg mt-4">
               <p>
-                Converting files: {conversionStatus.converted} / {conversionStatus.total}
+                Converting files: {conversionStatus.converted} /{' '}
+                {conversionStatus.total}
               </p>
-              <progress value={conversionStatus.converted} max={conversionStatus.total} className="w-full" />
+              <progress
+                value={conversionStatus.converted}
+                max={conversionStatus.total}
+                className="w-full"
+              />
             </div>
           )}
         </div>
