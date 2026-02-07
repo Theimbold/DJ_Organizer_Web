@@ -9,6 +9,9 @@ export default {
       colors: {
         primary: '#ff006e',
         secondary: '#3A86FF',
+
+        surface: '#0f0f0f',
+        surfaceSoft: '#1c1c1c',
       }
     },
   },
