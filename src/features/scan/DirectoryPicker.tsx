@@ -1,21 +1,31 @@
 import React, { useState } from 'react';
 import DriveFolderUploadIcon from '@mui/icons-material/DriveFolderUpload';
 import { scanAndStoreFiles } from '../../core/fs/fileScanner';
-import Button from '../../shared/ui/Button'; // Import the new Button component
+import Button from '../../shared/ui/Button'; 
 
 interface DirectoryPickerProps {
   onScanComplete: (result: { newFilesCount: number; handlesOfNewFiles: FileSystemFileHandle[] }) => void;
   onScanProgress: (progress: { loaded: number; total: number }) => void;
   coverUrl?: string;
+  disabled?: boolean;
 }
 
-const DirectoryPicker: React.FC<DirectoryPickerProps> = ({ onScanComplete, onScanProgress, coverUrl }) => {
+const DirectoryPicker: React.FC<DirectoryPickerProps> = ({ 
+  onScanComplete, 
+  onScanProgress, 
+  coverUrl, 
+  disabled = false,
+}) => {
   const [isScanning, setIsScanning] = useState(false);
   const serverUrl = 'http://localhost:3001';
   const backgroundImageUrl = coverUrl ? `${serverUrl}${coverUrl}` : '';
 
   const handleDirectoryPick = async () => {
+
+    if (disabled || isScanning) return;
+
     try {
+
       setIsScanning(true);
       const result = await scanAndStoreFiles(onScanProgress);
       
@@ -37,12 +47,14 @@ const DirectoryPicker: React.FC<DirectoryPickerProps> = ({ onScanComplete, onSca
     }
   };
 
+  const isDisabled = disabled || isScanning;
+
   return (
     <Button 
-      onClick={handleDirectoryPick} 
-      coverUrl={backgroundImageUrl}
-    >
-      {isScanning ? 'Scanning...' : 'Scan Music Directory'}
+    onClick={handleDirectoryPick} 
+    coverUrl={backgroundImageUrl} 
+    disabled={isDisabled}>
+      {isScanning ? 'Scanning...' : isDisabled ? 'Bitte warten…' : 'Scan Music Directory'}
       <DriveFolderUploadIcon />
     </Button>
   );

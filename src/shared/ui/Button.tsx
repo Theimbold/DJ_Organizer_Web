@@ -6,6 +6,7 @@ interface ButtonProps {
   coverUrl?: string;
   className?: string;
   variant?: "dark" | "light";
+  disabled?: boolean;
 }
 
 const Button: React.FC<ButtonProps> = ({
@@ -14,18 +15,18 @@ const Button: React.FC<ButtonProps> = ({
   coverUrl,
   className = '',
   variant = "dark",
+  disabled = false,
 }) => {
 
   const [isHovered, setIsHovered] = useState(false);
 
-  // Apple-ish: weiche Rundungen, Glassmorphism, feine Border, subtiler Schatten,
-  // "Press" Animation, Fokus-Ring, sehr clean.
+  // Wichtig: active:scale nur wenn nicht disabled
   const buttonClasses = `
     w-full relative overflow-hidden select-none
     px-4 py-2.5 text-[13px] font-medium tracking-[-0.01em]
     rounded-xl
     transition-all duration-200 ease-out
-    active:scale-[0.98]
+    ${disabled ? '' : 'active:scale-[0.98]'}
     focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black/40
     flex items-center justify-center gap-2
     ${className}
@@ -63,8 +64,8 @@ const baseStyle = useMemo(() => {
       color: 'rgba(255,255,255,0.98)',
     };
 
-    // Optional: Cover-Image als “tinted” Hintergrund beim Hover (Apple Music-ish)
-    const cover = isHovered && coverUrl
+    const cover = 
+    !disabled && isHovered && coverUrl
       ? {
           backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.35), rgba(0,0,0,0.55)), url(${coverUrl})`,
           backgroundSize: 'cover',
@@ -72,17 +73,30 @@ const baseStyle = useMemo(() => {
         }
       : {};
 
-    return {
-      ...(isHovered ? hoverGlass : glass),
+    const current = {
+      ...(isHovered && !disabled ? hoverGlass : glass),
       ...cover,
     };
-  }, [isHovered, coverUrl]);
+
+    // Disabled-Look
+    if (disabled) {
+      return {
+        ...current,
+        opacity: 0.55,
+        cursor: 'not-allowed',
+        filter: 'saturate(0.9)',
+      };
+    }
+
+    return current;
+  }, [isHovered, coverUrl, variant, disabled]);
 
   return (
     <button
       type="button"
-      onClick={onClick}
-      onMouseEnter={() => setIsHovered(true)}
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      onMouseEnter={() => !disabled && setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       className={buttonClasses}
       style={baseStyle}
@@ -94,7 +108,7 @@ const baseStyle = useMemo(() => {
         style={{
           background:
             'linear-gradient(180deg, rgba(255,255,255,0.18), rgba(255,255,255,0.04) 45%, rgba(0,0,0,0.10))',
-          opacity: isHovered ? 0.9 : 0.75,
+          opacity: disabled ? 0.35 : isHovered ? 0.9 : 0.75,
           transition: 'opacity 200ms ease',
         }}
       />
@@ -106,9 +120,9 @@ const baseStyle = useMemo(() => {
         style={{
           background:
             'linear-gradient(90deg, transparent, rgba(255,255,255,0.14), transparent)',
-          opacity: isHovered ? 1 : 0,
+          opacity: !disabled && isHovered ? 1 : 0,
           transition: 'opacity 200ms ease',
-          animation: isHovered ? 'btnSheen 900ms ease-out 1' : 'none',
+          animation: !disabled && isHovered ? 'btnSheen 900ms ease-out 1' : 'none',
         }}
       />
 

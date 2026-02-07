@@ -11,279 +11,309 @@ import { Track } from './types/types';
 import { addFileHandle, getFileHandle } from './core/fs/fileHandleState';
 
 const App: React.FC = () => {
-    const [tracks, setTracks] = useState<Track[]>([]);
-    const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
-    const [processingStatus, setProcessingStatus] = useState<{ isActive: boolean; total: number; processed: number }>({ isActive: false, total: 0, processed: 0 });
-    const [settingsOpen, setSettingsOpen] = useState(false);
-    const [isTrackListVisible, setIsTrackListVisible] = useState(false);
-    
-    // New states for conversion progress
-    const [conversionStatus, setConversionStatus] = useState<{ total: number; converted: number }>({ total: 0, converted: 0 });
-    const [fileConversionProgress, setFileConversionProgress] = useState<{ [filename: string]: number }>({});
-    const overallConversionPercentage = useMemo(() => {
-        if (conversionStatus.total === 0) return 0;
-        const totalProgress = Object.values(fileConversionProgress).reduce((sum, current) => sum + current, 0);
-        return totalProgress / conversionStatus.total;
-    }, [fileConversionProgress, conversionStatus.total]);
+  const [tracks, setTracks] = useState<Track[]>([]);
+  const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
 
+  const [processingStatus, setProcessingStatus] = useState<{
+    isActive: boolean;
+    total: number;
+    processed: number;
+  }>({ isActive: false, total: 0, processed: 0 });
 
-    const selectedTrackRef = useRef(selectedTrack);
-    useEffect(() => {
-        selectedTrackRef.current = selectedTrack;
-    }, [selectedTrack]);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [isTrackListVisible, setIsTrackListVisible] = useState(false);
 
-    // WebSocket connection
-    useEffect(() => {
-        const ws = new WebSocket('ws://localhost:3001');
-        ws.onopen = () => console.log('WebSocket connected');
-        ws.onclose = () => console.log('WebSocket disconnected');
+  // Conversion progress states
+  const [conversionStatus, setConversionStatus] = useState<{ total: number; converted: number }>({
+    total: 0,
+    converted: 0,
+  });
 
-        ws.onmessage = (event) => {
-            const message = JSON.parse(event.data);
-            switch (message.type) {
-                case 'conversion_progress': {
-                    const { filename, percent } = message.data;
-                    setFileConversionProgress(prev => ({ ...prev, [filename]: percent }));
-                    break;
-                }
-                case 'conversion_complete': {
-                    const newTrack: Track = message.data;
-                    setTracks(prev => [...prev, newTrack]);
-                    db.tracks.add(newTrack); // Also add to IndexedDB
-                    setConversionStatus(prev => ({ ...prev, converted: prev.converted + 1 }));
-                    // NEW: Automatically select the track if no track is currently selected
-                    if (!selectedTrackRef.current) {
-                        setSelectedTrack(newTrack);
-                    }
-                    break;
-                }
-                case 'conversion_error': {
-                    console.error('Conversion error:', message.data);
-                    // Decrement total so the bar can still complete
-                    setConversionStatus(prev => ({ ...prev, total: Math.max(0, prev.total - 1) }));
-                    break;
-                }
-            }
-        };
+  const [fileConversionProgress, setFileConversionProgress] = useState<{ [filename: string]: number }>({});
 
-        return () => {
-            ws.close();
-        };
-    }, []);
+  // const overallConversionPercentage = useMemo(() => {
+  //   if (conversionStatus.total === 0) return 0;
+  //   const totalProgress = Object.values(fileConversionProgress).reduce((sum, current) => sum + current, 0);
+  //   return totalProgress / conversionStatus.total;
+  // }, [fileConversionProgress, conversionStatus.total]);
 
-    const fetchTracksFromServer = async () => {
-        try {
-            const response = await axios.get('http://localhost:3001/tracks');
-            const serverTracks: Track[] = response.data;
-            await db.transaction('rw', db.tracks, async () => {
-                await db.tracks.clear();
-                await db.tracks.bulkAdd(serverTracks);
-            });
-            setTracks(serverTracks);
+  const selectedTrackRef = useRef(selectedTrack);
+  useEffect(() => {
+    selectedTrackRef.current = selectedTrack;
+  }, [selectedTrack]);
 
-            if (!selectedTrackRef.current && serverTracks.length > 0) {
-                const unratedTracks = serverTracks.filter(t => t.status !== 'rated');
-                setSelectedTrack(unratedTracks.length > 0 ? unratedTracks[0] : serverTracks[0]);
-            }
-        } catch (error) {
-            console.error('Error fetching tracks from server:', error);
+  // WebSocket connection
+  useEffect(() => {
+    const ws = new WebSocket('ws://localhost:3001');
+
+    ws.onopen = () => console.log('WebSocket connected');
+    ws.onclose = () => console.log('WebSocket disconnected');
+
+    ws.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+
+      switch (message.type) {
+        case 'conversion_progress': {
+          const { filename, percent } = message.data;
+          setFileConversionProgress((prev) => ({ ...prev, [filename]: percent }));
+          break;
         }
-    };
 
-    // Effect for initial load
-    useEffect(() => {
-        fetchTracksFromServer();
-    }, []);
+        case 'conversion_complete': {
+          const newTrack: Track = message.data;
 
-    const sortedTracks = useMemo(() => {
-        return [...tracks].sort((a, b) => {
-            if (a.status === 'rated' && b.status !== 'rated') return 1;
-            if (a.status !== 'rated' && b.status === 'rated') return -1;
-            return a.title.localeCompare(b.title);
-        });
-    }, [tracks]);
+          setTracks((prev) => [...prev, newTrack]);
+          db.tracks.add(newTrack);
+          setConversionStatus((prev) => ({ ...prev, converted: prev.converted + 1 }));
 
-    const { previousTrack, nextTrack } = useMemo(() => {
-        if (!selectedTrack || sortedTracks.length < 2) return { previousTrack: null, nextTrack: null };
-        const currentIndex = sortedTracks.findIndex(t => t.id === selectedTrack.id);
-        if (currentIndex === -1) return { previousTrack: null, nextTrack: null };
-        const prevIndex = (currentIndex - 1 + sortedTracks.length) % sortedTracks.length;
-        const nextIndex = (currentIndex + 1) % sortedTracks.length;
-        return { previousTrack: sortedTracks[prevIndex], nextTrack: sortedTracks[nextIndex] };
-    }, [selectedTrack, sortedTracks]);
-
-    const handleScanProgress = (progress: { loaded: number; total: number }) => {
-        setProcessingStatus({ isActive: true, processed: progress.loaded, total: progress.total });
-    };
-
-    const handleScanComplete = (result: { newFilesCount: number; handlesOfNewFiles: FileSystemFileHandle[] }) => {
-        setProcessingStatus({ isActive: false, total: 0, processed: 0 });
-        if (result.newFilesCount > 0) {
-            setConversionStatus({ total: result.newFilesCount, converted: 0 });
-            const initialProgress = result.handlesOfNewFiles.reduce((acc, handle) => ({ ...acc, [handle.name]: 0 }), {});
-            setFileConversionProgress(initialProgress);
+          // Auto-select first track if none selected
+          if (!selectedTrackRef.current) {
+            setSelectedTrack(newTrack);
+          }
+          break;
         }
-        result.handlesOfNewFiles.forEach(handle => {
-            // This is a simplified way to associate handles; a robust solution might need more state
-        });
-    };
 
-    const handleRemoveTrack = async (trackId: number | undefined) => {
-        if (trackId === undefined) return;
-        try {
-            await axios.delete(`http://localhost:3001/tracks/${trackId}`);
-            setTracks(prev => prev.filter(t => t.id !== trackId));
-            db.tracks.delete(trackId);
-            if (selectedTrack?.id === trackId) {
-                setSelectedTrack(null);
-            }
-        } catch (error) {
-            console.error(`Error deleting track ${trackId}:`, error);
+        case 'conversion_error': {
+          console.error('Conversion error:', message.data);
+          // Decrement total so the bar can still complete
+          setConversionStatus((prev) => ({ ...prev, total: Math.max(0, prev.total - 1) }));
+          break;
         }
-    };
-    
-    const handleUpdateTrack = async (updatedTrack: Track) => {
-        try {
-            await axios.put(`http://localhost:3001/tracks/${updatedTrack.id}`, updatedTrack);
-            setTracks(prevTracks => prevTracks.map(t => (t.id === updatedTrack.id ? updatedTrack : t)));
-            db.tracks.put(updatedTrack);
-            if (selectedTrack?.id === updatedTrack.id) {
-                setSelectedTrack(updatedTrack);
-            }
-        } catch (error) {
-            console.error(`Error updating track ${updatedTrack.id}:`, error);
-        }
+
+        default:
+          break;
+      }
     };
 
-    const handleResetRating = (trackId: number | undefined) => {
-        if (trackId === undefined) return;
-        const trackToReset = tracks.find(t => t.id === trackId);
-        if (!trackToReset) return;
-        const resetTrack: Track = { ...trackToReset, status: 'unrated', genre: undefined, mood: undefined };
-        handleUpdateTrack(resetTrack);
+    return () => {
+      ws.close();
+    };
+  }, []);
+
+  const fetchTracksFromServer = async () => {
+    try {
+      const response = await axios.get('http://localhost:3001/tracks');
+      const serverTracks: Track[] = response.data;
+
+      await db.transaction('rw', db.tracks, async () => {
+        await db.tracks.clear();
+        await db.tracks.bulkAdd(serverTracks);
+      });
+
+      setTracks(serverTracks);
+
+      if (!selectedTrackRef.current && serverTracks.length > 0) {
+        const unratedTracks = serverTracks.filter((t) => t.status !== 'rated');
+        setSelectedTrack(unratedTracks.length > 0 ? unratedTracks[0] : serverTracks[0]);
+      }
+    } catch (error) {
+      console.error('Error fetching tracks from server:', error);
+    }
+  };
+
+  // initial load
+  useEffect(() => {
+    fetchTracksFromServer();
+  }, []);
+
+  const sortedTracks = useMemo(() => {
+    return [...tracks].sort((a, b) => {
+      if (a.status === 'rated' && b.status !== 'rated') return 1;
+      if (a.status !== 'rated' && b.status === 'rated') return -1;
+      return a.title.localeCompare(b.title);
+    });
+  }, [tracks]);
+
+  const { previousTrack, nextTrack } = useMemo(() => {
+    if (!selectedTrack || sortedTracks.length < 2) return { previousTrack: null, nextTrack: null };
+
+    const currentIndex = sortedTracks.findIndex((t) => t.id === selectedTrack.id);
+    if (currentIndex === -1) return { previousTrack: null, nextTrack: null };
+
+    const prevIndex = (currentIndex - 1 + sortedTracks.length) % sortedTracks.length;
+    const nextIndex = (currentIndex + 1) % sortedTracks.length;
+
+    return { previousTrack: sortedTracks[prevIndex], nextTrack: sortedTracks[nextIndex] };
+  }, [selectedTrack, sortedTracks]);
+
+  const handleScanProgress = (progress: { loaded: number; total: number }) => {
+    setProcessingStatus({ isActive: true, processed: progress.loaded, total: progress.total });
+  };
+
+  const handleScanComplete = (result: { newFilesCount: number; handlesOfNewFiles: FileSystemFileHandle[] }) => {
+    setProcessingStatus({ isActive: false, total: 0, processed: 0 });
+
+    if (result.newFilesCount > 0) {
+      setConversionStatus({ total: result.newFilesCount, converted: 0 });
+
+      const initialProgress = result.handlesOfNewFiles.reduce((acc, handle) => {
+        return { ...acc, [handle.name]: 0 };
+      }, {} as { [filename: string]: number });
+
+      setFileConversionProgress(initialProgress);
+    }
+
+    result.handlesOfNewFiles.forEach((handle) => {
+      // TODO: robust association of handles ↔ track IDs (currently simplified)
+      // addFileHandle(...) would happen when you have an ID to bind to.
+    });
+  };
+
+  const handleRemoveTrack = async (trackId: number | undefined) => {
+    if (trackId === undefined) return;
+
+    try {
+      await axios.delete(`http://localhost:3001/tracks/${trackId}`);
+      setTracks((prev) => prev.filter((t) => t.id !== trackId));
+      db.tracks.delete(trackId);
+
+      if (selectedTrack?.id === trackId) {
+        setSelectedTrack(null);
+      }
+    } catch (error) {
+      console.error(`Error deleting track ${trackId}:`, error);
+    }
+  };
+
+  const handleUpdateTrack = async (updatedTrack: Track) => {
+    try {
+      await axios.put(`http://localhost:3001/tracks/${updatedTrack.id}`, updatedTrack);
+
+      setTracks((prevTracks) => prevTracks.map((t) => (t.id === updatedTrack.id ? updatedTrack : t)));
+      db.tracks.put(updatedTrack);
+
+      if (selectedTrack?.id === updatedTrack.id) {
+        setSelectedTrack(updatedTrack);
+      }
+    } catch (error) {
+      console.error(`Error updating track ${updatedTrack.id}:`, error);
+    }
+  };
+
+  const handleResetRating = (trackId: number | undefined) => {
+    if (trackId === undefined) return;
+
+    const trackToReset = tracks.find((t) => t.id === trackId);
+    if (!trackToReset) return;
+
+    const resetTrack: Track = {
+      ...trackToReset,
+      status: 'unrated',
+      genre: undefined,
+      mood: undefined,
     };
 
-    const handleNextTrack = () => nextTrack && setSelectedTrack(nextTrack);
-    const handlePreviousTrack = () => previousTrack && setSelectedTrack(previousTrack);
-    const handleToggleSettings = () => setSettingsOpen(prev => !prev);
-    const toggleTrackListView = () => setIsTrackListVisible(prev => !prev);
+    handleUpdateTrack(resetTrack);
+  };
 
-    const coverUrl = selectedTrack?.cover_url;
+  const handleNextTrack = () => nextTrack && setSelectedTrack(nextTrack);
+  const handlePreviousTrack = () => previousTrack && setSelectedTrack(previousTrack);
 
-        const showConversionProgress = conversionStatus.total > 0 && conversionStatus.converted < conversionStatus.total;
-        const hasTracks = tracks.length > 0;
-        const isUploading = processingStatus.isActive && processingStatus.processed < processingStatus.total;
-        const isConverting = showConversionProgress;
-        const isBusy = isUploading || isConverting; // “busy state”
-    
+  const handleToggleSettings = () => setSettingsOpen((prev) => !prev);
+  const toggleTrackListView = () => setIsTrackListVisible((prev) => !prev);
 
-        return (
+  const coverUrl = selectedTrack?.cover_url;
 
-            <div className="bg-black text-white min-h-screen flex flex-col p-5">
+  const showConversionProgress = conversionStatus.total > 0 && conversionStatus.converted < conversionStatus.total;
 
-                {/* Header */}
+  const hasTracks = tracks.length > 0;
+  const isUploading = processingStatus.isActive && processingStatus.processed < processingStatus.total;
+  const isConverting = showConversionProgress;
+  const isBusy = isUploading || isConverting; // “busy state”
 
-                <header className="relative h-[10vh] flex items-center">
-                    <h1 className="mx-auto text-[#A8AFEC] text-2xl font-bold">
-                        DJ Organizer
-                    </h1>
+  return (
+    <div className="bg-black text-white min-h-screen flex flex-col p-5">
+      {/* Header */}
+      <header className="relative h-[10vh] flex items-center">
+        <h1 className="mx-auto text-[#A8AFEC] text-2xl font-bold">DJ Organizer</h1>
 
-                    <div className="ml-auto">
-                        <SettingsButton isOpen={settingsOpen} onToggle={handleToggleSettings} />
-                    </div>
-                </header>
+        <div className="ml-auto">
+          <SettingsButton isOpen={settingsOpen} onToggle={handleToggleSettings} />
+        </div>
+      </header>
 
+      {/* Action Buttons Section */}
+      <div className="flex gap-5" style={{ minHeight: '10vh' }}>
+        <div className={hasTracks && !isBusy ? 'w-1/2' : 'w-full'}>
+          <DirectoryPicker onScanComplete={handleScanComplete} onScanProgress={handleScanProgress} coverUrl={coverUrl} />
+        </div>
 
-                {/* Action Buttons Section */}
+        {hasTracks && !isBusy && (
+          <div className="w-1/2">
+            <ExportButton coverUrl={coverUrl} />
+          </div>
+        )}
+      </div>
 
-                    <div className="flex gap-5" style={{ minHeight: '10vh' }}>
-                    <div className={hasTracks && !isBusy ? "w-1/2" : "w-full"}>
-                        <DirectoryPicker
-                        onScanComplete={handleScanComplete}
-                        onScanProgress={handleScanProgress}
-                        coverUrl={coverUrl}
-                        />
-                    </div>
-
-                    {hasTracks && !isBusy && (
-                        <div className="w-1/2">
-                        <ExportButton coverUrl={coverUrl} />
-                        </div>
-                    )}
-                    </div>
-
-    
-
-                {/* Progress Bars Section */}
-                    {(isUploading || isConverting) && (
-                    <div className="py-5">
-                        {isUploading && (
-                        <div className="p-4 bg-blue-900/50 border border-blue-400 rounded-lg">
-                            <p>
-                            Uploading files: {Math.round(processingStatus.processed / 1024 / 1024)} MB / {Math.round(processingStatus.total / 1024 / 1024)} MB
-                            </p>
-                            <progress value={processingStatus.processed} max={processingStatus.total} className="w-full" />
-                        </div>
-                        )}
-
-                        {isConverting && (
-                        <div className="p-4 bg-green-900/50 border border-green-400 rounded-lg mt-4">
-                            <p>Converting files: {conversionStatus.converted} / {conversionStatus.total}</p>
-                            <progress value={conversionStatus.converted} max={conversionStatus.total} className="w-full" />
-                        </div>
-                        )}
-                    </div>
-                    )}
-
-    
-
-                {/* Main Content: Settings or Player/TrackList */}
-<main className="flex-grow">
-  {settingsOpen && <div className="my-4"><Settings /></div>}
-
-  {/* EMPTY oder BUSY: kein Player, keine TrackList */}
-  {!settingsOpen && (!hasTracks || isBusy) && (
-    <div className="mt-6 text-center text-white/70">
-      {!hasTracks && <p>Wähle einen Musik-Ordner aus, um zu starten.</p>}
-      {isBusy && <p>Bitte warten… Dateien werden verarbeitet.</p>}
-    </div>
-  )}
-
-  {/* READY: Player / TrackList */}
-  {!settingsOpen && hasTracks && !isBusy && (
-    isTrackListVisible ? (
-      <TrackList
-        tracks={sortedTracks}
-        selectedTrack={selectedTrack}
-        setSelectedTrack={setSelectedTrack}
-        onRemoveTrack={handleRemoveTrack}
-        onUpdateTrack={handleUpdateTrack}
-        onResetRating={handleResetRating}
-        onToggleView={toggleTrackListView}
-      />
-    ) : (
-      <Player
-        track={selectedTrack}
-        previousTrack={previousTrack}
-        nextTrack={nextTrack}
-        onNext={handleNextTrack}
-        onPrevious={handlePreviousTrack}
-        onToggleView={toggleTrackListView}
-        onUpdateTrack={handleUpdateTrack}
-      />
-    )
-  )}
-</main>
-
-
+      {/* Progress Bars Section */}
+      {(isUploading || isConverting) && (
+        <div className="py-5">
+          {isUploading && (
+            <div className="p-4 bg-blue-900/50 border border-blue-400 rounded-lg">
+              <p>
+                Uploading files: {Math.round(processingStatus.processed / 1024 / 1024)} MB /{' '}
+                {Math.round(processingStatus.total / 1024 / 1024)} MB
+              </p>
+              <progress value={processingStatus.processed} max={processingStatus.total} className="w-full" />
             </div>
+          )}
 
-        );
+          {isConverting && (
+            <div className="p-4 bg-green-900/50 border border-green-400 rounded-lg mt-4">
+              <p>
+                Converting files: {conversionStatus.converted} / {conversionStatus.total}
+              </p>
+              <progress value={conversionStatus.converted} max={conversionStatus.total} className="w-full" />
+            </div>
+          )}
+        </div>
+      )}
 
-    };
+      {/* Main Content: Settings or Player/TrackList */}
+      <main className="flex-grow">
+        {settingsOpen && (
+          <div className="my-4">
+            <Settings />
+          </div>
+        )}
 
-    
+        {/* EMPTY or BUSY: no Player, no TrackList */}
+        {!settingsOpen && (!hasTracks || isBusy) && (
+          <div className="mt-6 text-center text-white/70">
+            {!hasTracks && <p>Wähle einen Musik-Ordner aus, um zu starten.</p>}
+            {isBusy && <p>Bitte warten… Dateien werden verarbeitet.</p>}
+          </div>
+        )}
 
-    export default App;
+        {/* READY: Player / TrackList */}
+        {!settingsOpen && hasTracks && !isBusy && (
+          <>
+            {isTrackListVisible ? (
+              <TrackList
+                tracks={sortedTracks}
+                selectedTrack={selectedTrack}
+                setSelectedTrack={setSelectedTrack}
+                onRemoveTrack={handleRemoveTrack}
+                onUpdateTrack={handleUpdateTrack}
+                onResetRating={handleResetRating}
+                onToggleView={toggleTrackListView}
+              />
+            ) : (
+              <Player
+                track={selectedTrack}
+                previousTrack={previousTrack}
+                nextTrack={nextTrack}
+                onNext={handleNextTrack}
+                onPrevious={handlePreviousTrack}
+                onToggleView={toggleTrackListView}
+                onUpdateTrack={handleUpdateTrack}
+              />
+            )}
+          </>
+        )}
+      </main>
+    </div>
+  );
+};
 
-    
+export default App;
