@@ -1,0 +1,11 @@
+services:
+  app:
+    image: dj-organizer:present-1
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./server/uploads:/app/server/uploads
+      - ./server/processed:/app/server/processed
+    environment:
+      PORT: "3001"
+    restart: unless-stopped
